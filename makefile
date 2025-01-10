@@ -1,7 +1,11 @@
 BIN = /usr/local/bin
 
-install: $(BIN)/vq
+install: $(BIN)/vq $(BIN)/ccolumn
 
 $(BIN)/%: %.sh
+	cp $< $@
+	chmod 755 $@
+
+$(BIN)/%: %.pl
 	cp $< $@
 	chmod 755 $@
