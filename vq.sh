@@ -97,7 +97,7 @@ function main {
             $user = $F{USER};
             $me = $user eq $ENV{USER};
             $priority = $F{QOS} !~ /$LOWPRIORITY/;
-            $remaining = $size - $found - 5;
+            $remaining = $size - $found - 7;
 
             if ($running) {
                 $F{TRES_ALLOC} =~ /gpu=(\d+)/ and $gpus{$user} += $1;
@@ -124,7 +124,7 @@ function main {
 
             $size = $lines - scalar(keys %totals) - scalar(keys %pending);
 
-            ( $.<5 or ($me and ($running or $priority) and $user_run_total < 15 and $remaining > 7)
+            ( $.<5 or ($me and ($running or $priority and $highp < 10) and $user_run_total < 15 and $remaining > 7)
                     or ($counter % $found eq 0 and $remaining > 20)
                     or ($user_run_total < 3 and $me and $running)
                     or (not $me and $running and ($other_run_total<6 and $counter > 1 or $other_run_total<2))
@@ -191,7 +191,7 @@ function main {
 
             info $USER, "bold magenta";
 
-            for (sort { $val{$b} <=> $val{$a} } grep {$_ ne $USER} keys %val) {
+            for (sort { ($val{$b} <=> $val{$a}) or ($a cmp $b) } grep {$_ ne $USER} keys %val) {
                 info $_;
             }
         }
