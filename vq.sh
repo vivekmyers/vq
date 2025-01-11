@@ -96,7 +96,7 @@ function main {
             $pending = $F{ST} eq "PD";
             $user = $F{USER};
             $me = $user eq $ENV{USER};
-            $priority = $F{QOS} ne $LOWPRIORITY;
+            $priority = $F{QOS} !~ /$LOWPRIORITY/;
             $remaining = $size - $found - 5;
 
             if ($running) {
