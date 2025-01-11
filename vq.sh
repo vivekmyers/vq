@@ -37,9 +37,10 @@ function main {
         $, = "";
 
         $total_mine = 0;
-        $highp{$USER} = $highp = 0;
+        $highp{$USER} = 0;
         $totals{$USER} = $user_run_total = 0;
         $pending{$USER} = 0;
+        $highp = 0;
         $lowp = 0;
         $other_run_total = 0;
 
@@ -48,11 +49,11 @@ function main {
         $cols = `tput cols`;
 
         sub show {
-            $spc = max(int($cols / 16) - 2, 5);
+            $spc = max(int($cols / 17) - 2, 5);
 
             $F{JOBID} = substr($F{JOBID}, 0, $spc);
             $F{NAME} = substr($F{NAME}, 0, 4*$spc);
-            $F{REASON} = substr($F{REASON}, 0, 3*$spc) =~ s/\s//gr;
+            $F{REASON} = substr($F{REASON}, 0, 6*$spc) =~ s/\s//gr;
             $F{TIME} = substr($F{TIME}, 0, $spc);
             $F{TRES_ALLOC} = substr($F{TRES_ALLOC}, 0, 5*$spc);
             $F{QOS} = substr($F{QOS}, 0, $spc);
@@ -112,12 +113,13 @@ function main {
             $running and $user_run_total++ if $me;
             $running and $other_run_total++ unless $me;
 
+            $me and !$priority and $lowp++;
+            $me and $priority and $highp++;
+
             $running and $totals{$user}++;
             $pending and $pending{$user}++;
-            $running and $anyrunning++;
 
             $running and $priority and $highp{$user}++;
-            $running and !$priority and $lowp++;
             $pending and $priority and $highp_pending{$user}++;
 
             $size = $lines - scalar(keys %totals) - scalar(keys %pending);
@@ -129,15 +131,15 @@ function main {
             ) and $remaining > 2 and do {
                 show;
                 $counter=0;
-                $printnext=1;
+                $dotnext=1;
                 next;
             };
-            $printnext and do {
+            $dotnext and do {
                 show;
                 print "...\t" x ($tabs+1);
                 print "...\n";
                 $found++;
-                $printnext=0;
+                $dotnext=0;
             };
         };
 
@@ -151,8 +153,8 @@ function main {
         print color "bold";
         print "All", "jobs:", $.-1;
         print colored($USER, "bold magenta"), "jobs:", "$total_mine";
-        print colored($USER, "bold magenta"), "highprio:", $highp;
-        print colored($USER, "bold magenta"), "lowprio:", $lowp;
+        print colored($USER, "bold magenta"), "high priority:", $highp;
+        print colored($USER, "bold magenta"), "low priority:", $lowp;
         print color "reset";
 
         open $runfd, '>', \$runbuf;
