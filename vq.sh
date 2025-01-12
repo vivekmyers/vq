@@ -83,6 +83,17 @@ function main {
             $found++;
         }
 
+        sub getprio {
+            my $qos = shift;
+            if (exists $ENV{PRIORITY}) {
+                return $qos =~ /$ENV{PRIORITY}/;
+            } elsif (exists $ENV{LOWPRIORITY}) {
+                return $qos !~ /$ENV{LOWPRIORITY}/;
+            } else {
+                return $qos =~ /high/;
+            }
+        }
+
         select $table;
         while(<$squeue>) {
             s/^\s+|\s+$//g;
@@ -96,7 +107,7 @@ function main {
             $pending = $F{ST} eq "PD";
             $user = $F{USER};
             $me = $user eq $ENV{USER};
-            $priority = $F{QOS} !~ /$LOWPRIORITY/;
+            $priority = getprio $F{QOS};
             $remaining = $size - $found - 7;
 
             if ($running) {
@@ -221,11 +232,11 @@ function main {
         }
 PERL
 
-    }
+}
 
-    if [[ -t 0 ]]; then
-        loop main
-    else
-        main
-    fi
+if [[ -t 0 ]]; then
+    loop main
+else
+    main
+fi
 
