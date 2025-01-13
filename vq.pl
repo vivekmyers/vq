@@ -20,30 +20,37 @@ $, = undef;
 sub show {
     our (%F, $tabs, $found, @fields, $cols);
     local ($\, $,) = undef;
-    my $spc = max( int( $cols / 17 ) - 2, 5 );
+    local $spc = max( int( $cols / 17 ) - 2, 5 );
 
-    $F{JOBID} = substr( $F{JOBID}, 0, $spc );
-    $F{NAME} = substr( $F{NAME}, 0, 4 * $spc );
+    sub trunc {
+        my ($k, $n) = @_;
+        $s = int ($spc * $n);
+        $F{$k} = sprintf "%-${s}s", substr( $F{$k}, 0, $s );
+    }
+
     $F{REASON} =~ s/,\s+/,/g;
     $F{REASON} =~ s/\w\K\s+/-/g;
-    $F{REASON} = substr( $F{REASON}, 0, 6 * $spc );
-    $F{TIME} = substr( $F{TIME}, 0, $spc );
-    $F{TRES_ALLOC} = substr( $F{TRES_ALLOC}, 0, 5 * $spc );
-    $F{QOS} = substr( $F{QOS}, 0, 2 * $spc );
+
+    trunc "JOBID", 1;
+    trunc "NAME", 4;
+    trunc "REASON", 6;
+    trunc "TIME", 1.5;
+    trunc "TRES_ALLOC", 5;
+    trunc "QOS", 1.5;
+    trunc "ST", 3 / $spc;
+    trunc "USER", 1;
+    trunc "RANK", 4 / $spc;
+
     $F{ST} = substr( $F{ST}, 0, 2 ) =~ s/\bR\b/colored("R", "bold red")/er;
-    $F{USER} = substr( $F{USER}, 0, $spc ) =~ s/\b$USER\b/colored($USER, "bold magenta")/er;
+    $F{USER} =~ s/\b$USER\b/colored($USER, "bold magenta")/e;
 
     delete $F{JOBID} if $spc < 6;
     delete $F{TIME} if $spc < 6;
     delete $F{QOS} if $spc < 3;
 
-    print color("bold"), "RANK" if $. == 1;
-    print $.- 1 if $. > 1;
-    print "\t";
+    print color("bold") if $. == 1;
 
     $_ = join( "\t", @F{@fields} );
-    s/\s+/\t/g;
-    s/^\s*|\s*$//g;
 
     $tabs =()= /\t/g;
     $_ .= "\t..." x ( keys(%F) - $tabs - 1 ) if $tabs - 1 < $#fields;
@@ -129,15 +136,18 @@ for ( ;; ) {
     local $cols = int(`tput cols`) - 1;
 
     open my $squeue, "squeue ${sqarg} |" or die $!;
-    open my $table, "| ccolumn -t | tr '\\n' '\\0' | xargs -0 printf '%-${cols}s\\n'" or die $!;
 
-    select $table;
+    open my $outfd, ">", \my $outbuf;
+    select $outfd;
 
     while (<$squeue>) {
         $all++ if @fields;
 
         s/^\s+|\s+$//g;
         local @F = split /\s*###\s*/;
+        unshift @F, "RANK" if $. == 1;
+        unshift @F, $. - 1 if $. > 1;
+
         @fields = @F unless @fields;
         local %F = map { $fields[$_] => $F[$_] } 0 .. $#F;
 
@@ -195,9 +205,8 @@ for ( ;; ) {
         };
         $dotnext and do {
             show;
-            print "...\t" x ( $tabs + 1 );
-            print "...\n";
-            $found++;
+            %F = map { $fields[$_] => "..." } 0 .. $#F;
+            show;
             $dotnext = 0;
         };
     }
@@ -205,15 +214,9 @@ for ( ;; ) {
     close $squeue;
     $? and die "squeue failed ($?)";
 
-    close $table;
-    $? and die "ccolumn failed ($?): make sure ccolumn.pl script is in your PATH";
-
-    my $outbuf;
-    open my $outfd, ">", \$outbuf;
-    select $outfd;
-
     local $, = " ";
     local $\ = "\n";
+
     print;
     print color "bold";
     print "All jobs:", $all;
@@ -222,9 +225,8 @@ for ( ;; ) {
     print colored( $USER, "bold magenta" ), "low priority:", $lowp;
     print color "reset";
 
-    my ( $runbuf, $pendbuf );
-    open my $runfd, '>', \$runbuf;
-    open my $pendfd, '>', \$pendbuf;
+    open my $runfd, '>', \my $runbuf;
+    open my $pendfd, '>', \my $pendbuf;
 
     select $runfd;
     summarize "running", \%totals, \%highp, \%cpus, \%gpus ;
@@ -246,11 +248,13 @@ for ( ;; ) {
     }
 
     select STDOUT;
-    @outbuf = split /\n/, $outbuf;
+    my @outbuf = split /\n/, $outbuf;
     my $sgr = color "reset";
     for (@outbuf) {
         chomp;
-        printf "%-${cols}s", substr($_, 0, $cols);
+        s/\t/  /g;
+        my $m = $cols + ( length $_ ) - ( length colorstrip $_ );
+        printf "%-${m}s", substr($_, 0, $m);
         print $sgr;
     }
 
