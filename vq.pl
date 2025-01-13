@@ -118,11 +118,11 @@ for ( ;; ) {
 
     my (%highp, %highp_pending, %totals, %pending, %gpus, %cpus, %gpus_pending, %cpus_pending);
 
-    my ($all, $total_mine, $highp, $user_run_total, $lowp, $other_run_total) = 0;
+    my ($all, $total_mine, $highp, $user_run_total, $lowp, $other_run_total) = (0) x 6;
 
     $totals{$USER} = $pending{$USER} = $highp{$USER} = 0;
 
-    local ($tabs, $counter, $found, $dotnext, $lines, $cols) = 0;
+    local ($tabs, $counter, $found, $dotnext, $lines, $cols) = (0) x 6;
     local @fields;
 
     local $lines = my $size = int `tput lines` - 1;
