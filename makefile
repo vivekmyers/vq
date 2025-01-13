@@ -1,4 +1,4 @@
-BIN = /usr/local/bin
+BIN = $(if $(CONDA_PREFIX),$(CONDA_PREFIX)/bin,/usr/local/bin)
 
 install: $(BIN)/vq $(BIN)/ccolumn
 
