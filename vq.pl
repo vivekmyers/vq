@@ -133,7 +133,7 @@ for ( ;; ) {
     local @fields;
 
     local $lines = my $size = int `tput lines` - 1;
-    local $cols = int(`tput cols`) - 1;
+    local $cols = int(`tput cols`);
 
     open my $squeue, "squeue ${sqarg} |" or die $!;
 
@@ -184,26 +184,29 @@ for ( ;; ) {
 
         $size = $lines - max( scalar( keys %totals ), scalar( keys %pending )) - 7;
 
-        ( $. < 5
-            or ( $me
-                 and ( $running or $priority and $highp < 10 )
-                 and $user_run_total < 15
-                 and $remaining > 7 )
-            or ( $counter % $found eq 0 and $remaining > 20 )
-            or ( $user_run_total < 3 and $me and $running )
-            or ( not $me
-                 and $running
-                 and ( $other_run_total < 6 and $counter > 1
-                        or $other_run_total < 2 )
+        if (
+            ( $. < 5
+                or ( $me
+                     and ( $running or $priority and $highp < 10 )
+                     and $user_run_total < 15
+                     and $remaining > 7 )
+                or ( $counter % $found eq 0 and $remaining > 20 )
+
+                or ( not $me
+                     and $running
+                     and ( $other_run_total < 6 and $counter > 1 or $other_run_total < 2 )
+                )
+            ) and $remaining > 5 or (
+                $user_run_total < 3 and $me and $running and $remaining > 2
             )
-        ) and $remaining > 2 and do {
+        ) {
             $running and $user_run_total++ if $me;
             show;
             $counter = 0;
             $dotnext = 1;
             next;
         };
-        $dotnext and do {
+        if ($dotnext) {
             show;
             %F = map { $fields[$_] => "..." } 0 .. $#F;
             show;
