@@ -158,7 +158,7 @@ for ( ;; ) {
         my $user = $F{USER};
         my $me = $user eq $ENV{USER};
         my $priority = getprio $F{QOS};
-        my $remaining = $size - $found - 7;
+        my $remaining = $size - $found;
 
         if ($running) {
             $F{TRES_ALLOC} =~ /gpu=(\d+)/ and $gpus{$user} += $1;
@@ -171,7 +171,6 @@ for ( ;; ) {
         }
 
         $total_mine++ if $me;
-        $running and $user_run_total++ if $me;
         $running and $other_run_total++ unless $me;
 
         $me and !$priority and $lowp++;
@@ -183,7 +182,7 @@ for ( ;; ) {
         $running and $priority and $highp{$user}++;
         $pending and $priority and $highp_pending{$user}++;
 
-        $size = $lines - scalar( keys %totals ) - scalar( keys %pending );
+        $size = $lines - max( scalar( keys %totals ), scalar( keys %pending )) - 7;
 
         ( $. < 5
             or ( $me
@@ -198,6 +197,7 @@ for ( ;; ) {
                         or $other_run_total < 2 )
             )
         ) and $remaining > 2 and do {
+            $running and $user_run_total++ if $me;
             show;
             $counter = 0;
             $dotnext = 1;
