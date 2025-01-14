@@ -18,7 +18,7 @@ $\ = undef;
 $, = undef;
 
 sub show {
-    our (%F, $tabs, $found, @fields, $cols);
+    our (%F, $tabs, $lines_printed, @fields, $cols);
     local ($\, $,) = undef;
     local $spc = max( int( $cols / 17 ) - 2, 5 );
 
@@ -59,7 +59,7 @@ sub show {
     print "\n";
     print color "reset" if $. == 1;
 
-    $found++;
+    $lines_printed++;
 }
 
 sub getprio {
@@ -78,9 +78,9 @@ sub getprio {
 sub summarize {
     local $name = shift;
     local %val = %{ shift() };
-    local %highp = %{ shift() };
-    local %cpus = %{ shift() };
-    local %gpus = %{ shift() };
+    local %highp_running = %{ shift() };
+    local %cpus_running = %{ shift() };
+    local %gpus_running = %{ shift() };
 
     my @kv = keys %val;
     my @vv = values %val;
@@ -93,9 +93,9 @@ sub summarize {
         my $color = shift;
         my %data;
         my $v = $val{$user};
-        $data{cpus} = $cpus{$user} if $cpus{$user};
-        $data{gpus} = $gpus{$user} if $gpus{$user};
-        $data{highp} = $highp{$user} . "/" . $val{$user} if $highp{$user};
+        $data{cpus} = $cpus_running{$user} if $cpus_running{$user};
+        $data{gpus} = $gpus_running{$user} if $gpus_running{$user};
+        $data{highp} = $highp_running{$user} . "/" . $val{$user} if $highp_running{$user};
         $data{$_} = ( " " x ( 3 - length($_) ) ) . $data{$_}
         for keys %data;
         my $disp = $user;
@@ -123,16 +123,17 @@ system "tput reset";
 for ( ;; ) {
     system "tput cup 0 0";
 
-    my (%highp, %highp_pending, %totals, %pending, %gpus, %cpus, %gpus_pending, %cpus_pending);
+    my (%highp_running, %highp_pending, %running, %pending,
+        %gpus_running, %cpus_running, %gpus_pending, %cpus_pending);
 
-    my ($all, $total_mine, $highp, $user_run_total, $lowp, $other_run_total) = (0) x 6;
+    my ($all_jobs, $total_mine, $user_run_total, $highp, $lowp, $other_run_total) = (0) x 6;
 
-    $totals{$USER} = $pending{$USER} = $highp{$USER} = 0;
+    $running{$USER} = $pending{$USER} = $highp_running{$USER} = 0;
 
-    local ($tabs, $counter, $found, $dotnext, $lines, $cols) = (0) x 6;
+    local ($tabs, $counter, $lines_printed, $dotnext, $lines, $cols) = (0) x 6;
     local @fields;
 
-    local $lines = my $size = int `tput lines` - 1;
+    local $lines = int `tput lines` - 1;
     local $cols = int(`tput cols`);
 
     open my $squeue, "squeue ${sqarg} |" or die $!;
@@ -141,7 +142,7 @@ for ( ;; ) {
     select $outfd;
 
     while (<$squeue>) {
-        $all++ if @fields;
+        $all_jobs++ if @fields;
 
         s/^\s+|\s+$//g;
         local @F = split /\s*###\s*/;
@@ -153,54 +154,53 @@ for ( ;; ) {
 
         $counter++;
 
-        my $running = $F{ST} eq "R";
-        my $pending = $F{ST} eq "PD";
+        my $isrunning = $F{ST} eq "R";
+        my $ispending = $F{ST} eq "PD";
         my $user = $F{USER};
         my $me = $user eq $ENV{USER};
         my $priority = getprio $F{QOS};
-        my $remaining = $size - $found;
 
-        if ($running) {
-            $F{TRES_ALLOC} =~ /gpu=(\d+)/ and $gpus{$user} += $1;
-            $F{TRES_ALLOC} =~ /cpu=(\d+)/ and $cpus{$user} += $1;
+        if ($isrunning) {
+            $F{TRES_ALLOC} =~ /gpu=(\d+)/ and $gpus_running{$user} += $1;
+            $F{TRES_ALLOC} =~ /cpu=(\d+)/ and $cpus_running{$user} += $1;
         }
 
-        if ($pending) {
+        if ($ispending) {
             $F{TRES_ALLOC} =~ /gpu=(\d+)/ and $gpus_pending{$user} += $1;
             $F{TRES_ALLOC} =~ /cpu=(\d+)/ and $cpus_pending{$user} += $1;
         }
 
         $total_mine++ if $me;
-        $running and $other_run_total++ unless $me;
+        $isrunning and $other_run_total++ unless $me;
 
         $me and !$priority and $lowp++;
         $me and $priority and $highp++;
 
-        $running and $totals{$user}++;
-        $pending and $pending{$user}++;
+        $isrunning and $running{$user}++;
+        $ispending and $pending{$user}++;
 
-        $running and $priority and $highp{$user}++;
-        $pending and $priority and $highp_pending{$user}++;
+        $isrunning and $priority and $highp_running{$user}++;
+        $ispending and $priority and $highp_pending{$user}++;
 
-        $size = $lines - max( scalar( keys %totals ), scalar( keys %pending )) - 7;
+        my $remaining = $lines - max( scalar( keys %running ), scalar( keys %pending )) - $lines_printed - 8;
 
         if (
             ( $. < 5
                 or ( $me
-                     and ( $running or $priority and $highp < 10 )
+                     and ( $isrunning or $priority and $highp < 10 )
                      and $user_run_total < 15
                      and $remaining > 7 )
-                or ( $counter % $found eq 0 and $remaining > 20 )
+                or ( $counter % $lines_printed eq 0 and $remaining > 20 )
 
                 or ( not $me
-                     and $running
+                     and $isrunning
                      and ( $other_run_total < 6 and $counter > 1 or $other_run_total < 2 )
                 )
             ) and $remaining > 5 or (
-                $user_run_total < 3 and $me and $running and $remaining > 2
+                $user_run_total < 3 and $me and $isrunning and $remaining > 2
             )
         ) {
-            $running and $user_run_total++ if $me;
+            $isrunning and $user_run_total++ if $me;
             show;
             $counter = 0;
             $dotnext = 1;
@@ -222,7 +222,7 @@ for ( ;; ) {
 
     print;
     print color "bold";
-    print "All jobs:", $all;
+    print "All jobs:", $all_jobs;
     print colored( $USER, "bold magenta" ), "jobs:", "$total_mine";
     print colored( $USER, "bold magenta" ), "high priority:", $highp;
     print colored( $USER, "bold magenta" ), "low priority:", $lowp;
@@ -232,7 +232,7 @@ for ( ;; ) {
     open my $pendfd, '>', \my $pendbuf;
 
     select $runfd;
-    summarize "running", \%totals, \%highp, \%cpus, \%gpus ;
+    summarize "running", \%running, \%highp_running, \%cpus_running, \%gpus_running ;
 
     select $pendfd;
     summarize "pending", \%pending, \%highp_pending, \%cpus_pending, \%gpus_pending;
@@ -261,8 +261,8 @@ for ( ;; ) {
         print $sgr;
     }
 
-    my $clines = $lines - $found - 2 - $#outbuf;
-    print (" " x $cols) for 1 .. $clines;
+    my $extra_lines = $lines - $lines_printed - 2 - $#outbuf;
+    print (" " x $cols) for 1 .. $extra_lines;
 
     if ( !-t STDOUT ) {
         last;
