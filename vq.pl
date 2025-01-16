@@ -121,16 +121,17 @@ sub width {
 system "tput reset";
 
 for ( ;; ) {
+    print " " x $cols for 1..3;
     system "tput cup 0 0";
 
     my (%highp_running, %highp_pending, %running, %pending,
         %gpus_running, %cpus_running, %gpus_pending, %cpus_pending);
 
-    my ($all_jobs, $total_mine, $user_run_total, $highp, $lowp, $other_run_total) = (0) x 6;
+    my ($all_jobs, $total_mine, $highp, $lowp, $other_run_total) = (0) x 5;
 
     $running{$USER} = $pending{$USER} = $highp_running{$USER} = 0;
 
-    local ($tabs, $counter, $lines_printed, $dotnext, $lines, $cols) = (0) x 6;
+    local ($tabs, $counter, $lines_printed, $dotnext) = (0) x 4;
     local @fields;
 
     local $lines = int `tput lines` - 1;
@@ -196,11 +197,12 @@ for ( ;; ) {
                      and $isrunning
                      and ( $other_run_total < 6 and $counter > 1 or $other_run_total < 2 )
                 )
-            ) and $remaining > 5 or (
-                $user_run_total < 3 and $me and $isrunning and $remaining > 2
+            ) and $remaining > 7 or (
+                $running{$USER} < 3 and $me and $isrunning and $remaining > 2
+            ) or (
+                $pending{$USER} < 3 and $me and $ispending and $remaining > 2
             )
         ) {
-            $isrunning and $user_run_total++ if $me;
             show;
             $counter = 0;
             $dotnext = 1;
