@@ -28,6 +28,9 @@ sub show {
         $F{$k} = sprintf "%-${s}s", substr( $F{$k}, 0, $s );
     }
 
+    my $isrunning = $F{ST} eq "R";
+    my $isme = $F{USER} eq $ENV{USER};
+
     $F{REASON} =~ s/,\s+/,/g;
     $F{REASON} =~ s/\w\K\s+/-/g;
 
@@ -41,8 +44,9 @@ sub show {
     trunc "USER", 1;
     trunc "RANK", 4 / $spc;
 
-    $F{ST} = substr( $F{ST}, 0, 2 ) =~ s/\bR\b/colored("R", "bold red")/er;
-    $F{USER} =~ s/\b$USER\b/colored($USER, "bold magenta")/e;
+    $F{ST} = substr( $F{ST}, 0, 2 );
+    $F{ST} = colored( $F{ST}, "bold red" ) if $isrunning;
+    $F{USER} = colored( $F{USER}, "bold magenta" ) if $isme;
 
     delete $F{JOBID} if $spc < 6;
     delete $F{TIME} if $spc < 6;
@@ -117,6 +121,11 @@ sub width {
     return max map { length colorstrip($_) } @$lines;
 }
 
+sub colorwidth {
+    local $_ = shift // $_;
+    return length() - length colorstrip($_);
+}
+
 
 system "tput reset";
 
@@ -187,15 +196,13 @@ for ( ;; ) {
 
         if (
             ( $. < 5
-                or ( $me
-                     and ( $isrunning or $priority and $highp < 10 )
-                     and $user_run_total < 15
-                     and $remaining > 7 )
+                or ( $me and ( $isrunning or $priority and $highp < 10 )
+                         and $user_run_total < 15
+                         and $remaining > 7 )
                 or ( $counter % $lines_printed eq 0 and $remaining > 20 )
-
-                or ( not $me
-                     and $isrunning
-                     and ( $other_run_total < 6 and $counter > 1 or $other_run_total < 2 )
+                or ( not $me and $isrunning
+                             and ( $other_run_total < 6 and $counter > 1
+                                                        or $other_run_total < 2 )
                 )
             ) and $remaining > 7 or (
                 $running{$USER} < 3 and $me and $isrunning and $remaining > 2
@@ -247,20 +254,19 @@ for ( ;; ) {
     $maxlen += int max( ( $cols - $maxlen - width( \@pendq ) ) / 4, 1 - $maxlen );
 
     for $i ( 0 .. $qlen ) {
-        my $m = $maxlen + ( length $runq[$i] ) - ( length colorstrip( $runq[$i] // "" ) );
-        printf "%-${m}s ", substr( $runq[$i] // "", 0, $m );
+        my $m = $maxlen - 6 + colorwidth $runq[$i];
+        printf "%-${m}s%s", substr( $runq[$i] // "", 0, $m ), " "x4;
         print $pendq[$i] // "";
     }
 
     select STDOUT;
     my @outbuf = split /\n/, $outbuf;
-    my $sgr = color "reset";
     for (@outbuf) {
         chomp;
         s/\t/  /g;
-        my $m = $cols + ( length $_ ) - ( length colorstrip $_ );
+        my $m = $cols + colorwidth;
         printf "%-${m}s", substr($_, 0, $m);
-        print $sgr;
+        print color "reset";
     }
 
     my $extra_lines = $lines - $lines_printed - 2 - $#outbuf;
