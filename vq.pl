@@ -61,7 +61,7 @@ sub show {
 
     print;
     print "\n";
-    print color "reset" if $. == 1;
+    print color("reset") if $. == 1;
 
     $lines_printed++;
 }
@@ -123,6 +123,7 @@ sub width {
 
 sub colorwidth {
     local $_ = shift // $_;
+    return 0 unless length();
     return length() - length colorstrip($_);
 }
 
@@ -264,7 +265,7 @@ for ( ;; ) {
     for (@outbuf) {
         chomp;
         s/\t/  /g;
-        my $m = $cols + colorwidth;
+        my $m = $cols + colorwidth();
         printf "%-${m}s", substr($_, 0, $m);
         print color "reset";
     }
